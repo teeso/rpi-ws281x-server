@@ -1,0 +1,19 @@
+{
+  "name": "Pixel",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "private": true,
+  "dependencies": {
+    "concat-stream": "^1.4.8",
+    "lodash": "^3.2.0",
+    "rpi-ws281x-native": "^0.1.2",
+    "ws": "^0.6.5"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
