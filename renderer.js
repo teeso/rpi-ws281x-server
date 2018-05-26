@@ -9,14 +9,18 @@ function Renderer(nextFrame) {
   var count = 0;
   var handle = null;
   var pixelData = new Uint32Array();
+  var pollStats = false;
 
   function render(){
     var begin = process.hrtime()
     nextFrame(pixelData, count++)
     self.emit("frame",pixelData);
     handle = setImmediate(render);
-    if( count % 500 == 0 ) {
-      console.log("ER", process.hrtime(begin)[1]/1000000 );
+    if( pollStats ) {
+      var diff = process.hrtime(begin);
+      var duration = diff[0] * 1e3 + diff[1] / 1e6;
+      self.emit("timing", duration );
+      pollStats = false;
     }
   }
 
@@ -28,6 +32,10 @@ function Renderer(nextFrame) {
   function stop(){
     clearImmediate(handle);
     handle = null;
+  }
+
+  this.pollStats = function(){
+    pollStats = true;
   }
 
   this.xON = function(){

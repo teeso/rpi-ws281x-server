@@ -7,8 +7,12 @@
   "dependencies": {
     "concat-stream": "^1.4.8",
     "lodash": "^3.2.0",
-    "rpi-ws281x-native": "^0.1.2",
-    "ws": "^0.6.5"
+    "moment": "^2.10.6",
+    "node-persist": "0.0.6",
+    "rpi-ws281x-native": "^0.8.1",
+    "sleep": "^5.1.0",
+    "syntax-error": "^1.1.6",
+    "ws": "^0.8.0"
   },
   "devDependencies": {},
   "scripts": {

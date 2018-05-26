@@ -1,34 +1,13 @@
-var stdin = process.stdin;
-process.stdin.setRawMode(true);
-
-// resume stdin in the parent process (node app won't quit all by itself
-// unless an error or process.exit() happens)
-stdin.resume();
-
-// i don't want binary, do you?
-stdin.setEncoding( 'utf8' );
+var moment = require("http://momentjs.com/downloads/moment.min.js");
 
 var position = 200;
 
-// on any data into stdin
-stdin.on( 'data', function( key ){
-  // ctrl-c ( end of text )
-  if ( key === '\u0003' ) {
-    process.exit();
-  }
-  var code = key.charCodeAt(0)
-  if( code === 91 /*[*/)
-  {
-    position++;
-    console.log("Position: ", position);
-  }
-  if( code === 93 /*]*/ && position > 0)
-  {
-    position--;
-    console.log("Position: ", position);
-  }
-  console.log( "Key: ", key.charCodeAt(0) );
-});
+var hOffsets = [];
+var vOffsets = [];
+
+//0=idle, 1=transition, 2=lightning
+var mode = 0;
+var modectr = 0;
 
 exports.nextFrame = function(pixelData, count) {
 function setRange(color, min, max) {
@@ -37,47 +16,93 @@ function setRange(color, min, max) {
   }
 }
   var NUM_LEDS = pixelData.length;
-    var rand = Math.random();
+  var rand = Math.random();
+  var newhrand = Math.random();//0.5
+  var newvrand = Math.random();//0.5
+  
   for (var i = 0; i < NUM_LEDS; i++) {
+    if( Math.random() > 0.8 ){
+      newhrand = Math.random();
+    }
+    if( Math.random() > 0.8 ){
+      newvrand = Math.random();
+    }
+
     var n = 5000;
     //var rgb = HSVtoRGB((count/4 + 1*i/4 * (n / NUM_LEDS)) / n * 2* 3.14, 1, 0.1);
     //pixelData[i] = 0xFFFFFF;
     //pixelData[i] = 0x010101;
+    var min = 0.06;
+    var max = 0.19;
+    var range = max - min;
+    var hold = hOffsets[i]||0.5;
+    hOffsets[i] = hold + (newhrand - hold) * 0.05;
+    var h = min + hOffsets[i] * range;
+    var vold = vOffsets[i]||0.5;
+    vOffsets[i] = vold + (newvrand - vold) * 0.15;
+    var v = 0.10 + vOffsets[i] * 0.3
+    var rgb = HSVtoRGB(1-h, 1, v);
     //pixelData[i] = 0x000000;
-    //pixelData[i] = rgb2Int(rgb.r,rgb.g,rgb.b);
-
-    //Red/White/Blue
-    //var s = 4;
-    //pixelData[i] = rgb2Int(0xFF/s,0x88/s,0xFF/s);//0xFF88FF;
-    //var color = Math.floor(count/500 + i/12) % 3;
-    //if(color === 2) pixelData[i] = rgb2Int(0xFF/s,0,0);//0xFF0000;
-    //if(color === 0) pixelData[i] = rgb2Int(0,0xFF/s,0);//0x00FF00;
-
-    var tmp = count % 800;
-    if(tmp <= 20 && rand > 0.6) {
-      //var val = 0xFF & (rand * 256);
-      //pixelData[i] = val | val << 8 | val << 16;
-   //   pixelData[i] = 0xFFFFFF;
-    }
-    //pixelData[i] = 0xFFFFFF;
-    /*Basic Lightning, do not delete without recording elsewhere
-    var tmp = count % 200;
-    if(tmp == 0 || tmp == 1 || tmp == 5)
-    pixelData[i] = 0xFFFFFF;
-    */
-    //pixelData[i] = ((count >> i) % 2 == 0)?0xFFFFFF:0x000000
+    pixelData[i] = rgb2Int(rgb.r,rgb.g,rgb.b);
   }
-  //pixelData[0] = 0xFFFFFF;
-  //pixelData[111] = 0x0000FF;
-  //pixelData[66] = 0x0000FF;
-  //setRange(0xCC5CCC, 112,127);
-  setRange(rgb2Int(20,20,20), 112,127);
-  pixelData[position] = 0x00FF00;
-  //setRange(0x004400, 10,49);
-  //pixelData[2] = (count) % 2 == 0?0:0x001100;
-  //pixelData[3] = (count >> 1) % 2 == 0?0:0x001100;
-  //pixelData[4] = (count >> 2) % 2 == 0?0:0x001100;
-  pixelData[position] = 0x00FF00;
+
+  //Purple
+  //setRange(rgb2Int(60,60,00), 112,127);
+  //Orange
+  setRange(rgb2Int(255,100,00), 112,127);
+
+  //Lightning
+  /*
+  if( moment().utcOffset(-7).date() === 31 ) {
+  var tmp = count % 800;
+  if(tmp <= 20 && rand > 0.6) {
+    setRange(rgb2Int(255,255,255), 0,NUM_LEDS-1);
+  }
+  }
+  */
+  //End lightning
+
+  var demo = false;
+
+  var tmp = count % (demo?50:100);
+  if(demo || moment().utcOffset(-7).date() === 31 ) {
+  if(mode===0 && tmp <= 0 && rand > (demo?0.1:0.9)) {
+    mode = 1;
+    modectr = 0;
+  }
+  }
+
+  if(mode === 2) {
+    if(rand > 0.6) {
+      setRange(rgb2Int(255,255,255), 0,NUM_LEDS-1);
+    }
+    modectr++;
+    if(modectr > 15) {
+      mode = 0;
+      modectr = 0;
+    }
+  }
+
+  if(mode===1) {
+    let i = (112 / 10 * modectr) >> 0;
+    pixelData[i] = rgb2Int(255,100,00);
+    i = 200 - ((200-127) / 10 * modectr) >> 0;
+    pixelData[i] = rgb2Int(255,100,00);
+    modectr++;
+    if(modectr > 10) {
+      mode = 2;
+      modectr = 0;
+    }
+  }
+
+  //Daytime blackout
+  var endtime = moment().utcOffset(-7).startOf('day').hour(12+10);
+  var starttime = moment().utcOffset(-7).startOf('day').hour(12+4);
+  var nowtime = moment().utcOffset(-7);
+  if(nowtime.isBefore(starttime) || nowtime.isAfter(endtime)) {
+    setRange(rgb2Int(0,0,0), 0,200);
+    setRange(rgb2Int(40,40,40), 119,120);
+  }
 }
 
 // rainbow-colors, taken from http://goo.gl/Cs3H0v
@@ -89,7 +114,7 @@ function colowheel(pos) {
 }
 
 function rgb2Int(r, g, b) {
-  return ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
+  return ((r & 0xff) << 16) + ((b & 0xff) << 8) + (g & 0xff);
 }
 
 function HSVtoRGB(h, s, v) {

@@ -3,13 +3,16 @@ console.log("Sandbox process starting...");
 var Sandbox = require("./sandbox-require");
 var sandbox = new Sandbox();
 
-/*
-try {
-var untrusted = sandbox("http://127.0.0.1:8080/effect.js");
-} catch( err ) {
-  console.error("Error requiring untrusted.js", err);
-}
-*/
+var Session = require("./Session");
+var session = new Session("ws://thinis.codingwell.net:8000")
+
+session.on("pollStats",function(){
+  process.send({msg:"pollStats"});
+  renderer.pollStats();
+});
+
+//temporary
+var ws = session;
 
 //var effect = require('./effect');
 
@@ -19,8 +22,10 @@ var Renderer = require('./renderer');
 
 function invokeUntrusted(buffer,count) {
   try {
-    var untrusted = sandbox("http://127.0.0.1:8080/effect.js");
-    untrusted.nextFrame(buffer,count);
+    if( !sandbox.isLoading() ) {
+      var untrusted = sandbox("http://127.0.0.1:8080/effect.js");
+      untrusted.nextFrame(buffer,count);
+    }
   } catch (e) {
     console.error(e);
   }
@@ -29,8 +34,13 @@ function invokeUntrusted(buffer,count) {
 var renderer = new Renderer( invokeUntrusted );
 
 renderer.on("frame",function(frame){
-  var encoded = base64.fromByteArray(Uint8Array(frame.buffer))
+  var encoded = base64.fromByteArray(new Uint8Array(frame.buffer))
   process.send({msg:"frame", "frame":encoded});
+})
+
+renderer.on("timing",function(duration){
+  var msg = {"msg":"renderer:timing","duration":duration};
+  ws.send(JSON.stringify(msg));
 })
 
 process.on('message', function(m) {
@@ -43,6 +53,15 @@ process.on('message', function(m) {
       break;
     case "XOFF":
       renderer.xOFF();
+      break;
+    case "timing":
+      ws.send(JSON.stringify(m));
+      break;
+    case "primed":
+      ws.send(JSON.stringify(m));
+      break;
+    case "underrun":
+      ws.send(JSON.stringify(m));
       break;
     default:
       console.error("Unknown message from parent process:", m);

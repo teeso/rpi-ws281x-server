@@ -1,24 +1,12 @@
 console.log("Starting...");
 
 var ws281x = require('rpi-ws281x-native');
-//var WebSocket = require('ws');
 var _ = require('lodash');
 var base64 = require('base64-js')
-var effect = require('./effect');
 var sleep = require('sleep');
 
 const debugtiming = true;
-/*
-var wss = new WebSocket.Server({port:80});
 
-wss.on('connection', function connection(ws) {
-  ws.on('message', function incoming(message) {
-    console.log('received: %s', message);
-  });
-
-  ws.send('something');
-});
-*/
 var NUM_LEDS = parseInt(process.argv[2], 10) || 50*4;
 var pixelData = new Uint32Array(NUM_LEDS);
 
@@ -41,18 +29,16 @@ process.on('SIGTERM', quit);
 
 process.on("exit", quit);
 
-const fps = 30;
+const fps = 1;
 const framems = 1000 / fps;
 
 // ---- animation-loop
 const hrstart = process.hrtime();
 const starttime = hrstart[0] * 1e3 + hrstart[1] / 1e6;
-var count = 0; 
+var pollStats = false;
 
-if( debugtiming ) {
-  var flast = hrstart;
-  var fdiff = null;
-}
+var flast = hrstart;
+var fdiff = null;
 
 var msnext = starttime;
 
@@ -77,24 +63,21 @@ function doit()
   msnext = msnext + framems;
 
   ws281x.render(pixelData);
-  count = count + 1;
 
-  if( debugtiming ) {
-    if( count % 500 == 0 ) {
-      console.log( (fstart[0] - flast[0]) * 1e3 + (fstart[1] - flast[1]) / 1e6  , "Func: ", fdiff );
-    }
-    flast = fstart;
+  if( pollStats ) {
+    var period = ((fstart[0] - flast[0]) * 1e3 + (fstart[1] - flast[1]) / 1e6);
+    var duration = fdiff[0] * 1e3 + fdiff[1] / 1e6;
+    child.send({"msg":"timing","period":period,"duration":duration });
+    pollStats = false;
   }
+  flast = fstart;
 
-  //effect.nextFrame(pixelData, count);
   var frame = display.takeFrame();
   if(frame) {
     var buffer = base64.toByteArray(frame).buffer;
     pixelData = new Uint32Array( buffer );
   }
-  if( debugtiming ) {
-    fdiff = process.hrtime(fstart);
-  }
+  fdiff = process.hrtime(fstart);
 }
 
 
@@ -114,7 +97,6 @@ function Display(maxQueueLength) {
   this.bufferFrame = function(frame){
     frameQueue.enqueue(frame);
     var length = frameQueue.getLength()
-    //console.log("buffer: ", length);
     if( length >= maxQueueLength ) {
       this.emit("XOFF");
     }
@@ -138,8 +120,10 @@ var child = child_process.fork("./child");
 var primed = false;
 
 display.on("bufferUnderrun",function(){
-  if(primed)
-  console.error("Frame buffer underrun", new Date());
+  if(primed) {
+    child.send({msg:"underrun"});
+    primed = false;
+  }
 });
 
 display.on("XON",function(){
@@ -148,7 +132,7 @@ display.on("XON",function(){
 
 display.on("XOFF",function(){
   if(!primed) {
-    console.log("Frame buffer primed")
+    child.send({msg:"primed"});
     primed = true;
   }
   child.send({msg:"XOFF"});
@@ -158,6 +142,9 @@ child.on('message', function(m) {
   switch(m.msg) {
     case "frame":
       display.bufferFrame(m.frame);
+      break;
+    case "pollStats":
+      pollStats = true;
       break;
     default:
       console.error("Unknown message from child process:", m);
